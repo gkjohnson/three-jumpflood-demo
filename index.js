@@ -114,7 +114,7 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'SDF': 0, 'STROKE': 1, 'GLOW': 2 } );
+    gui.add( params, 'mode', { 'SDF': 0, 'Outline': 1, 'Glow': 2 } );
     gui.add( params, 'thickness', 0, 50 );
     gui.addColor( params, 'color' );
 
@@ -366,7 +366,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                     } else if ( mode == 1 ) {
 
-                        // stroke
+                        // outline
                         float val = 0.0;
                         for ( int x = - 1; x <= 1; x ++ ) {
 
