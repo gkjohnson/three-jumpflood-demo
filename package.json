@@ -1,0 +1,15 @@
+{
+  "name": "three-jumpflood-demo",
+  "version": "1.0.0",
+  "description": "Demonstration showing real time effects and application of the \"Jump Flood Algorithm\"",
+  "homepage": "https://github.com/gkjohnson/three-jumpflood-demo#readme",
+  "bugs": {
+    "url": "https://github.com/gkjohnson/three-jumpflood-demo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gkjohnson/three-jumpflood-demo.git"
+  },
+  "license": "MIT",
+  "author": "Garrett Johnson <garrett.kjohnson@gmail.com>"
+}
