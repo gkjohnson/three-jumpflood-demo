@@ -20,6 +20,7 @@ let lastFrameStart = - 1;
 
 const params = {
     mode: 1,
+    inside: false,
     thickness: 10,
     color: '#e91e63',
 };
@@ -115,7 +116,8 @@ async function init() {
 
     const gui = new GUI();
     gui.add( params, 'mode', { 'SDF': 0, 'Outline': 1, 'Glow': 2 } );
-    gui.add( params, 'thickness', 0, 50 );
+    gui.add( params, 'inside' );
+    gui.add( params, 'thickness', 0, 50, 0.25 );
     gui.addColor( params, 'color' );
 
     window.addEventListener( 'resize', onWindowResize );
@@ -212,6 +214,7 @@ function animate() {
     effectQuad.material.map = targets[ 0 ].texture;
     effectQuad.material.thickness = params.thickness;
     effectQuad.material.mode = params.mode;
+    effectQuad.material.inside = params.inside;
     effectQuad.material.color.set( params.color );
     effectQuad.render( renderer );
     renderer.autoClear = true;
@@ -309,6 +312,18 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
     }
 
+    get inside() {
+
+        return this.uniforms.inside.value === - 1;
+
+    }
+
+    set inside( v ) {
+
+        this.uniforms.inside.value = v ? - 1 : 1;
+
+    }
+
     get color() {
 
         return this.uniforms.color.value;
@@ -324,6 +339,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                 map: { value: null },
                 color: { value: new THREE.Color() },
                 thickness: { value: 5 },
+                inside: { value: 1 },
                 mode: { value: 1 },
             },
 
@@ -345,6 +361,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                 uniform isampler2D map;
                 uniform float thickness;
                 uniform int mode;
+                uniform int inside;
                 uniform vec3 color;
 
                 float fwidth2( float v ) {
@@ -374,7 +391,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                                 ivec2 coord = ivec2( gl_FragCoord.xy ) + ivec2( x, y );
                                 coord = clamp( coord, ivec2( 0 ), textureSize( map, 0 ) - ivec2( 1.0 ) );
-                                val += float( texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
+                                val += float( inside * texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
 
                             }
 
@@ -395,7 +412,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                                 ivec2 coord = ivec2( gl_FragCoord.xy ) + ivec2( x, y );
                                 coord = clamp( coord, ivec2( 0 ), textureSize( map, 0 ) - ivec2( 1.0 ) );
-                                val += float( texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
+                                val += float( inside * texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
 
                             }
 
