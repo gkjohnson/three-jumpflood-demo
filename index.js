@@ -620,13 +620,16 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
                         float dist = coord.b * float( inside );
                         float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
-                        float val =
+                        float clip =
                             smoothstep( thickness + w, thickness - w, dist ) *
                             smoothstep( - w - 1.0, w - 1.0, dist );
 
                         float norm = dist / thickness;
-                        gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 5.0 ) );
-                        gl_FragColor.a = val * sin( time * - 0.01 + 20.0 * pow( norm, 2.5 ) ) * ( 1.0 - pow( norm, 2.0 ) );
+                        float fade = 1.0 - pow( norm, 2.0 );
+                        float pulse = sin( time * - 0.01 + 20.0 * pow( norm + 0.2, 4.0 ) );
+
+                        gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 4.0 ) );
+                        gl_FragColor.a = clip * fade * smoothstep( 0.0, 0.0, pulse );
 
                     }
 
