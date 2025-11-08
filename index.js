@@ -8,20 +8,18 @@ import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 let camera, scene, renderer, controls;
-let effectQuad, jfaQuad;
+let effectQuad, jfaQuad, seedQuad;
 let infoContainer;
 let targets, seedMaterial;
-let clearColor = new THREE.Color();
-const MAX_VALUE = 2**14;
 
 let frameTime = 0;
 let frameSamples = 0;
 let lastFrameStart = - 1;
 
 const params = {
-    mode: 1,
+    mode: 3,
     inside: false,
-    thickness: 10,
+    thickness: 5,
     color: '#e91e63',
 };
 
@@ -51,16 +49,16 @@ async function init() {
     // note that integer targets require non-interpolated filters to function
     targets = [
         new THREE.WebGLRenderTarget( 1, 1, {
-            format: THREE.RedIntegerFormat,
-            type: THREE.ShortType,
-            internalFormat: 'R16I',
+            format: THREE.RGBAFormat,
+            type: THREE.FloatType,
+            // internalFormat: 'RG16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
         } ),
         new THREE.WebGLRenderTarget( 1, 1, {
-            format: THREE.RedIntegerFormat,
-            type: THREE.ShortType,
-            internalFormat: 'R16I',
+            format: THREE.RGBAFormat,
+            type: THREE.FloatType,
+            // internalFormat: 'RG16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
         } ),
@@ -70,6 +68,8 @@ async function init() {
     effectQuad = new FullScreenQuad( new EffectMaterial() );
 
     jfaQuad = new FullScreenQuad( new JFAMaterial() );
+
+    seedQuad = new FullScreenQuad( new SeedMaterial() );
 
     // load the model & env map
     const modelPromise = new GLTFLoader()
@@ -115,7 +115,7 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'SDF': 0, 'Outline': 1, 'Glow': 2 } );
+    gui.add( params, 'mode', { 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3 } );
     gui.add( params, 'inside' );
     gui.add( params, 'thickness', 0, 50, 0.25 );
     gui.addColor( params, 'color' );
@@ -175,18 +175,20 @@ function animate() {
     //
 
     // initialize the JFA seed - negative values are "inside" the mesh to be rendered
-    clearColor.setScalar( MAX_VALUE );
-    renderer.setClearColor( clearColor )
-    seedMaterial.value.setScalar( - MAX_VALUE );
-
-    // render the scene with the seed values
-    scene.overrideMaterial = seedMaterial;
     renderer.setRenderTarget( targets[ 0 ] );
-    renderer.render( scene, camera );
-    renderer.setRenderTarget( null );
-    scene.overrideMaterial = null;
+    seedQuad.material.depthWrite = false;
+    seedQuad.render( renderer );
 
-    let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness + 1 );
+    // render the model
+    scene.overrideMaterial = seedMaterial;
+    seedMaterial.negative = true;
+    renderer.autoClear = false;
+    renderer.render( scene, camera );
+    renderer.autoClear = true;
+    scene.overrideMaterial = null;
+    renderer.setRenderTarget( null );
+
+    let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness * 2 );
     while( true ) {
 
         jfaQuad.material.step = step;
@@ -207,7 +209,6 @@ function animate() {
         step = Math.ceil( step * 0.5 );
 
     }
-
 
     // render the final effect
     renderer.autoClear = false;
@@ -230,9 +231,15 @@ function animate() {
 
 class SeedMaterial extends THREE.ShaderMaterial {
 
-    get value() {
+    get negative() {
 
-        return this.uniforms.value.value;
+        return this.uniforms.negative.value === - 1;
+
+    }
+
+    set negative( v ) {
+
+        this.uniforms.negative.value = v ? - 1 : 1;
 
     }
 
@@ -240,10 +247,8 @@ class SeedMaterial extends THREE.ShaderMaterial {
 
         super( {
 
-            glslVersion: THREE.GLSL3,
-
             uniforms: {
-                value: { value: new THREE.Vector4() },
+                negative: { value: 1 },
             },
 
             vertexShader: /* glsl */`
@@ -258,11 +263,10 @@ class SeedMaterial extends THREE.ShaderMaterial {
 
             fragmentShader: /* glsl */`
 
-                layout( location = 0 ) out ivec4 out_color;
-                uniform ivec4 value;
+                uniform int negative;
                 void main() {
 
-                    out_color = value;
+                    gl_FragColor = vec4( gl_FragCoord.xy, 1e4 * float( negative ), 1 );
 
                 }
 
@@ -358,7 +362,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
             fragmentShader: /* glsl */`
 
                 varying vec2 vUv;
-                uniform isampler2D map;
+                uniform sampler2D map;
                 uniform float thickness;
                 uniform int mode;
                 uniform int inside;
@@ -374,52 +378,44 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                 void main() {
 
+                    vec2 size = vec2( textureSize( map, 0 ) );
+                    ivec2 currCoord = ivec2( vUv * size );
                     if ( mode == 0 ) {
 
-                        // sdf
-                        float v = float( texture( map, vUv ).r );
-                        gl_FragColor = vec4( abs( v ) ) / thickness;
-                        gl_FragColor.a = 1.0;
+                        // coordinate
+                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
+                        gl_FragColor = vec4( vec3( coord ) / vec3( size, 1 ), 1 );
 
                     } else if ( mode == 1 ) {
 
+                        // sdf
+                        float dist = abs( texelFetch( map, currCoord, 0 ).b ) / thickness;
+                        gl_FragColor = vec4( dist, dist, dist, 1 );
+
+                    } else if ( mode == 2 ) {
+
                         // outline
-                        float val = 0.0;
-                        for ( int x = - 1; x <= 1; x ++ ) {
-
-                            for ( int y = - 1; y <= 1; y ++ ) {
-
-                                ivec2 coord = ivec2( gl_FragCoord.xy ) + ivec2( x, y );
-                                coord = clamp( coord, ivec2( 0 ), textureSize( map, 0 ) - ivec2( 1.0 ) );
-                                val += float( inside * texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
-
-                            }
-
-                        }
-
-                        val = smoothstep( thickness + 1.0, thickness, val ) * clamp( val, 0.0, 1.0 );
+                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
+                        float dist = coord.b * float( inside );
+                        float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+                        float val =
+                            smoothstep( thickness + w, thickness - w, dist ) *
+                            smoothstep( - w - 1.0, w - 1.0, dist );
 
                         gl_FragColor.rgb = vec3( color );
                         gl_FragColor.a = val;
 
-                    } else if ( mode == 2 ) {
+                    } else if ( mode == 3 ) {
 
                         // glow
-                        float val = 0.0;
-                        for ( int x = - 1; x <= 1; x ++ ) {
+                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
+                        float dist = coord.b * float( inside );
+                        float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
 
-                            for ( int y = - 1; y <= 1; y ++ ) {
-
-                                ivec2 coord = ivec2( gl_FragCoord.xy ) + ivec2( x, y );
-                                coord = clamp( coord, ivec2( 0 ), textureSize( map, 0 ) - ivec2( 1.0 ) );
-                                val += float( inside * texelFetch( map, coord, 0 ).r + 1 ) / 9.0;
-
-                            }
-
-                        }
 
                         gl_FragColor.rgb = color;
-                        gl_FragColor.a = ( 1.0 - val / thickness ) * clamp( val, 0.0, 1.0 );
+                        gl_FragColor.a = ( 1.0 - dist / thickness ) * smoothstep( - w - 1.0, w - 1.0, dist );
+
 
                     }
 
@@ -461,28 +457,13 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
     }
 
-    get firstStep() {
-
-        return Boolean( this.uniforms.firstStep.value );
-
-    }
-
-    set firstStep( v ) {
-
-        this.uniforms.firstStep.value = Number( v );
-
-    }
-
     constructor() {
 
         super( {
 
-            glslVersion: THREE.GLSL3,
-
             uniforms: {
                 source: { value: null },
                 step: { value: 0 },
-                firstStep: { value: 0 },
             },
 
             vertexShader: /* glsl */`
@@ -497,14 +478,15 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
             fragmentShader: /* glsl */`
 
-                layout( location = 0 ) out ivec4 out_color;
-
-                uniform isampler2D source;
+                uniform sampler2D source;
                 uniform int step;
-                uniform int firstStep;
+
                 void main() {
 
-                    int result = texelFetch( source, ivec2( gl_FragCoord.xy ), 0 ).r;
+                    ivec2 size = textureSize( source, 0 );
+                    ivec2 currCoord = ivec2( gl_FragCoord.xy );
+                    vec3 result = texelFetch( source, currCoord, 0 ).rgb;
+
                     for ( int x = - 1; x <= 1; x ++ ) {
 
                         for ( int y = - 1; y <= 1; y ++ ) {
@@ -517,27 +499,36 @@ class JFAMaterial extends THREE.ShaderMaterial {
                             }
 
                             // skip pixels that are outside the target bounds
-                            ivec2 coord = ivec2( gl_FragCoord.xy ) + ivec2( x, y ) * step;
-                            ivec2 res = textureSize( source, 0 );
+                            ivec2 coord = currCoord + ivec2( x, y ) * step;
                             if (
-                                coord.x >= res.x || coord.x < 0 ||
-                                coord.y >= res.y || coord.y < 0
+                                coord.x >= size.x || coord.x < 0 ||
+                                coord.y >= size.y || coord.y < 0
                             ) {
 
                                 continue;
 
                             }
 
-                            int t = texelFetch( source, coord, 0 ).r;
-                            if ( sign( result ) != sign( t ) ) {
+                            vec3 other = texelFetch( source, coord, 0 ).rgb;
+                            if ( sign( result.z ) != sign( other.z ) ) {
 
-                                // if the sign is different then we've found a new distance
-                                result = sign( result ) * min( abs( result ), step );
+                                // if the sign is different then we've possibly found a new best coord
+                                float dist = length( vec2( currCoord - coord ) );
+                                if ( dist < abs( result.z ) ) {
 
-                            } else {
+                                    result = vec3( coord, dist * sign( result.z ) );
 
-                                // if the sign is the same then we can extend off of that distance
-                                result = sign( result ) * min( abs( result ), abs( t ) + step );
+                                }
+
+                            } else if ( ivec2( other.rg ) != coord ) {
+
+                                // if the sign is the same then we've possibly found a new best distance
+                                float dist = length( vec2( currCoord - ivec2( other.rg ) ) );
+                                if ( dist < abs( result.z ) ) {
+
+                                    result = vec3( other.rg, dist * sign( result.z ) );
+
+                                }
 
                             }
 
@@ -545,7 +536,7 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
                     }
 
-                    out_color = ivec4( result );
+                    gl_FragColor = vec4( result, 1.0 );
 
                 }
 
