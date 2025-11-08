@@ -42,7 +42,7 @@ async function init() {
     document.body.appendChild( renderer.domElement );
 
     controls = new OrbitControls( camera, renderer.domElement );
-    // controls.autoRotate = true;
+    controls.autoRotate = true;
     controls.autoRotateSpeed = 1;
 
     seedMaterial = new SeedMaterial();
@@ -600,10 +600,6 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         gl_FragColor.a = ( 1.0 - dist / thickness ) * smoothstep( - w - 1.0, w - 1.0, dist );
 
                     }
-
-                    // float v = texture( mask, vUv ).r;
-                    // gl_FragColor = mix( gl_FragColor * gl_FragColor.a, vec4( v, v, v, 1 ), 0.25 );
-                    // gl_FragColor.a = 1.0;
 
                     #include <colorspace_fragment>
 
