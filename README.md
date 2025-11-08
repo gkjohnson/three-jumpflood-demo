@@ -1,16 +1,14 @@
 # three-jumpflood-demo
 
-Demonstration showing application of the [Jump Flood Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm) for realtime effects like model silhouette outline and glow. Based in part on the concepts described in [this article by Ben Golus](https://bgolus.medium.com/the-quest-for-very-wide-outlines-ba82ed442cd9).
+Demonstration showing application of the [Jump Flood Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm) for realtime effects like model silhouette outline and glow. Based in part on the concepts described in [this article by Ben Golus](https://bgolus.medium.com/the-quest-for-very-wide-outlines-ba82ed442cd9). Robot model by [artjamayka on SketchFab](https://sketchfab.com/3d-models/vilhelm-13-low-res-textures-cb49a1f71ba54cad8e9dc09da8ef47cd).
 
-Demo [here](https://gkjohnson.github.io/three-jumpflood-demo/)!
+Demo [here](https://gkjohnson.github.io/three-jumpflood-demo/)! 
 
 ![](./banner.png)
 
 <div align="center">
-<i>Silhouette glow and outline effects in real time</i>
+<i>Silhouette glow and outline effects in real time. </i>
 </div>
-
-Robot model by [artjamayka on SketchFab](https://sketchfab.com/3d-models/vilhelm-13-low-res-textures-cb49a1f71ba54cad8e9dc09da8ef47cd).
 
 ## Potential Improvements
 
