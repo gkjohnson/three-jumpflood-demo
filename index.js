@@ -20,9 +20,9 @@ const box = new THREE.Box3();
 const sphere = new THREE.Sphere();
 
 const params = {
-    mode: 2,
+    mode: 5,
     inside: false,
-    thickness: 15,
+    thickness: 50,
     color: '#e91e63',
 };
 
@@ -31,7 +31,7 @@ async function init() {
     infoContainer = document.getElementById( 'info' );
 
     camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
-    camera.position.set( 3, 2, 3 );
+    camera.position.set( 4, 3, 4 );
 
     scene = new THREE.Scene();
 
@@ -139,9 +139,9 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4 } );
+    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4, 'Halftone': 5 } );
     gui.add( params, 'inside' );
-    gui.add( params, 'thickness', 0, 50, 0.25 );
+    gui.add( params, 'thickness', 1, 75, 0.25 );
     gui.addColor( params, 'color' );
 
     window.addEventListener( 'resize', onWindowResize );
@@ -640,6 +640,47 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                         gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 4.0 ) );
                         gl_FragColor.a = clip * fade * smoothstep( 0.0, fwidth2( pulse ), pulse );
+
+                    } else if ( mode == 5 ) {
+
+                        // halftone
+                        float dotRadius = 13.0;
+                        float dotWidth = dotRadius * 2.0;
+                        vec2 closestDot = floor( vec2( currCoord ) / dotWidth ) * dotWidth + vec2( dotRadius );
+
+                        float alpha = 0.0;
+                        for ( int x = - 1; x <= 1; x ++ ) {
+
+                            for ( int y = - 1; y <= 1; y ++ ) {
+
+                                vec2 offset = vec2( x, y ) * dotWidth;
+                                vec2 dotCoord = closestDot + offset;
+
+                                float dotStrength = texelFetch( map, ivec2( dotCoord ), 0 ).b * float( inside );
+                                if ( dotStrength != 0.0 ) {
+
+                                    dotStrength += dotRadius * 1.3;
+                                    dotStrength /= 1.5;
+
+                                    float strength = clamp( 1.0 - dotStrength / thickness, 0.0, 1.0 );
+                                    strength = 1.0 - pow( 1.0 - strength, 0.75 );
+                                    strength *= 1.0;
+
+                                    float distToDot = length( vec2( currCoord ) - dotCoord );
+                                    float newAlpha = smoothstep( strength * dotWidth, strength * dotWidth - 1.0, distToDot );
+                                    alpha = max( alpha, newAlpha );
+
+                                }
+
+                            }
+
+                        }
+
+                        //
+
+                        float w = 0.5;
+                        gl_FragColor.rgb = color;
+                        gl_FragColor.a = alpha * smoothstep( - w - 1.0, w - 1.0, s.b * float( inside ) );
 
                     }
 
