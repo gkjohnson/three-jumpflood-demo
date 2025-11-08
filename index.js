@@ -8,16 +8,16 @@ import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 let camera, scene, renderer, controls;
-let effectQuad, jfaQuad, seedQuad;
+let effectQuad, jfaQuad, seedQuad, expandQuad;
 let infoContainer;
-let targets, seedMaterial;
+let targets, seedMaterial, masks, maskMaterial;
 
 let frameTime = 0;
 let frameSamples = 0;
 let lastFrameStart = - 1;
 
 const params = {
-    mode: 3,
+    mode: 2,
     inside: false,
     thickness: 5,
     color: '#e91e63',
@@ -39,11 +39,13 @@ async function init() {
     document.body.appendChild( renderer.domElement );
 
     controls = new OrbitControls( camera, renderer.domElement );
-    controls.autoRotate = true;
+    // controls.autoRotate = true;
     controls.autoRotateSpeed = 1;
 
     seedMaterial = new SeedMaterial();
     seedMaterial.side = THREE.DoubleSide;
+
+    maskMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );
     
     // initialize the JFA ping pong targets
     // note that integer targets require non-interpolated filters to function
@@ -51,16 +53,33 @@ async function init() {
         new THREE.WebGLRenderTarget( 1, 1, {
             format: THREE.RGBAFormat,
             type: THREE.FloatType,
-            // internalFormat: 'RG16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
         } ),
         new THREE.WebGLRenderTarget( 1, 1, {
             format: THREE.RGBAFormat,
             type: THREE.FloatType,
-            // internalFormat: 'RG16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
+        } ),
+    ];
+
+    masks = [
+        new THREE.WebGLRenderTarget( 1, 1, {
+            format: THREE.RedFormat,
+            type: THREE.UnsignedByteType,
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            wrapS: THREE.ClampToEdgeWrapping,
+            wrapT: THREE.ClampToEdgeWrapping,
+        } ),
+        new THREE.WebGLRenderTarget( 1, 1, {
+            format: THREE.RedFormat,
+            type: THREE.UnsignedByteType,
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            wrapS: THREE.ClampToEdgeWrapping,
+            wrapT: THREE.ClampToEdgeWrapping,
         } ),
     ];
 
@@ -70,6 +89,8 @@ async function init() {
     jfaQuad = new FullScreenQuad( new JFAMaterial() );
 
     seedQuad = new FullScreenQuad( new SeedMaterial() );
+
+    expandQuad = new FullScreenQuad( new ExpandMaskMaterial() );
 
     // load the model & env map
     const modelPromise = new GLTFLoader()
@@ -115,7 +136,7 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3 } );
+    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3 } );
     gui.add( params, 'inside' );
     gui.add( params, 'thickness', 0, 50, 0.25 );
     gui.addColor( params, 'color' );
@@ -188,11 +209,37 @@ function animate() {
     scene.overrideMaterial = null;
     renderer.setRenderTarget( null );
 
+    // render a mask
+    masks[ 0 ].setSize( Math.floor( targets[ 0 ].width / params.thickness ), Math.floor( targets[ 0 ].height / params.thickness ) );
+    masks[ 1 ].setSize( masks[ 0 ].width, masks[ 0 ].height );
+
+    scene.overrideMaterial = maskMaterial;
+    renderer.setClearColor( 0, 0 );
+    renderer.setRenderTarget( masks[ 0 ] );
+    renderer.render( scene, camera );
+    scene.overrideMaterial = null;
+    renderer.setRenderTarget( null );
+
+    // expand the mask
+    for ( let i = 0; i < 3; i ++ ) {
+
+        expandQuad.material.source = masks[ 0 ].texture;
+        renderer.setRenderTarget( masks[ 1 ] );
+        expandQuad.render( renderer );
+        renderer.setRenderTarget( null );
+
+        masks.reverse();
+
+    }
+
+    masks.reverse();
+
     let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness );
     while( true ) {
 
         jfaQuad.material.step = step;
         jfaQuad.material.source = targets[ 0 ].texture;
+        jfaQuad.material.mask = masks[ 1 ].texture;
 
         renderer.setRenderTarget( targets[ 1 ] );
         jfaQuad.render( renderer );
@@ -213,6 +260,7 @@ function animate() {
     // render the final effect
     renderer.autoClear = false;
     effectQuad.material.map = targets[ 0 ].texture;
+    effectQuad.material.mask = masks[ 1 ].texture;
     effectQuad.material.thickness = params.thickness;
     effectQuad.material.mode = params.mode;
     effectQuad.material.inside = params.inside;
@@ -226,6 +274,83 @@ function animate() {
         `Frame Time: ${ frameTime.toFixed( 2 ) }ms\n` +
         `FPS       : ${ ( 1000 / frameTime ).toFixed( 2 ) }`;
     renderer.info.reset();
+
+}
+
+class ExpandMaskMaterial extends THREE.ShaderMaterial {
+
+    get source() {
+
+        return this.uniforms.source.value;
+
+    }
+
+    set source( v ) {
+
+        this.uniforms.source.value = v;
+
+    }
+
+    constructor() {
+
+        super( {
+
+            uniforms: {
+                source: { value: null },
+            },
+
+            vertexShader: /* glsl */`
+
+                void main() {
+
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+                }
+
+            `,
+
+            fragmentShader: /* glsl */`
+
+                uniform sampler2D source;
+                uniform int outline;
+                void main() {
+
+                    ivec2 currCoord = ivec2( gl_FragCoord.xy );
+                    float currValue = texelFetch( source, currCoord, 0 ).r;
+                    float result = 0.0;
+                    for ( int x = - 1; x <= 1; x ++ ) {
+
+                        for ( int y = - 1; y <= 1; y ++ ) {
+
+                            if ( x == 0 && y == 0 ) {
+
+                                continue;
+
+                            }
+
+                            ivec2 coord = currCoord + ivec2( x, y );
+                            float otherValue = texelFetch( source, coord, 0 ).r;
+
+                            if ( otherValue != 0.0 ) {
+
+                                gl_FragColor = vec4( 1.0 );
+                                return;
+
+                            }
+
+                        }
+
+                    }
+
+                    gl_FragColor = vec4( 0.0 );
+
+                }
+
+            `,
+
+        } );
+
+    }
 
 }
 
@@ -292,6 +417,18 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
     }
 
+    get mask() {
+
+        return this.uniforms.mask.value;
+
+    }
+
+    set mask( v ) {
+
+        this.uniforms.mask.value = v;
+
+    }
+
     get thickness() {
 
         return this.uniforms.thickness.value;
@@ -341,6 +478,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
             transparent: true,
             uniforms: {
                 map: { value: null },
+                mask: { value: null },
                 color: { value: new THREE.Color() },
                 thickness: { value: 5 },
                 inside: { value: 1 },
@@ -363,6 +501,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                 varying vec2 vUv;
                 uniform sampler2D map;
+                uniform sampler2D mask;
                 uniform float thickness;
                 uniform int mode;
                 uniform int inside;
@@ -380,7 +519,12 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                     vec2 size = vec2( textureSize( map, 0 ) );
                     ivec2 currCoord = ivec2( vUv * size );
-                    if ( mode == 0 ) {
+                    if ( mode == - 1 ) {
+
+                        float v = texture( mask, vUv ).r;
+                        gl_FragColor = vec4( v, v, v, 1 );
+
+                    } else if ( mode == 0 ) {
 
                         // coordinate
                         vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
@@ -412,12 +556,14 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         float dist = coord.b * float( inside );
                         float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
 
-
                         gl_FragColor.rgb = color;
                         gl_FragColor.a = ( 1.0 - dist / thickness ) * smoothstep( - w - 1.0, w - 1.0, dist );
 
-
                     }
+
+                    // float v = texture( mask, vUv ).r;
+                    // gl_FragColor = mix( gl_FragColor * gl_FragColor.a, vec4( v, v, v, 1 ), 0.25 );
+                    // gl_FragColor.a = 1.0;
 
                     #include <colorspace_fragment>
 
@@ -445,6 +591,18 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
     }
 
+    get mask() {
+
+        return this.uniforms.mask.value;
+
+    }
+
+    set mask( v ) { 
+
+        this.uniforms.mask.value = v;
+
+    }
+
     get step() {
 
         return this.uniforms.step.value;
@@ -463,13 +621,16 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
             uniforms: {
                 source: { value: null },
+                mask: { value: null },
                 step: { value: 0 },
             },
 
             vertexShader: /* glsl */`
 
+                varying vec2 vUv;
                 void main() {
 
+                    vUv = uv;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
                 }
@@ -478,7 +639,9 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
             fragmentShader: /* glsl */`
 
+                varying vec2 vUv;
                 uniform sampler2D source;
+                uniform sampler2D mask;
                 uniform int step;
 
                 void main() {
@@ -486,8 +649,15 @@ class JFAMaterial extends THREE.ShaderMaterial {
                     ivec2 size = textureSize( source, 0 );
                     ivec2 currCoord = ivec2( gl_FragCoord.xy );
                     vec3 result = texelFetch( source, currCoord, 0 ).rgb;
-                    float resultSign = sign( result.z );
 
+                    if ( texture( mask, vUv ).r < 0.5 ) {
+
+                        gl_FragColor = vec4( result, 1 );
+                        return;
+
+                    }
+
+                    float resultSign = sign( result.z );
                     ivec2 otherCoord;
                     vec3 other;
                     

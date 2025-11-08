@@ -6,3 +6,4 @@ Demonstration showing application of the [Jump Flood Algorithm](https://en.wikip
 
 - Improved outline anti-aliasing referencing the above article.
 - Limit the the jump flood operation range using stencil or scissor tests rather than operating on the full screen.
+- Use lower bit depth textures.
