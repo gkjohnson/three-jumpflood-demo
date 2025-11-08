@@ -16,3 +16,4 @@ Demo [here](https://gkjohnson.github.io/three-jumpflood-demo/)!
 - Improved outline anti-aliasing referencing the above article.
 - Limit the the jump flood operation range using stencil tests rather than operating on the full screen / scissor.
 - Use lower precision textures.
+- Investigate lower-resolution textures for jump flood stage.
