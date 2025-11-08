@@ -629,7 +629,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         float pulse = sin( time * - 0.01 + 20.0 * pow( norm + 0.2, 4.0 ) );
 
                         gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 4.0 ) );
-                        gl_FragColor.a = clip * fade * smoothstep( 0.0, 0.0, pulse );
+                        gl_FragColor.a = clip * fade * smoothstep( 0.0, fwidth2( pulse ), pulse );
 
                     }
 
