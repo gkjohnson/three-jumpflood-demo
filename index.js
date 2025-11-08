@@ -574,6 +574,14 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                     vec2 size = vec2( textureSize( map, 0 ) );
                     ivec2 currCoord = ivec2( vUv * size );
+                    vec3 s = texelFetch( map, currCoord, 0 ).rgb;
+
+                    if ( s.b == 0.0 ) {
+
+                        discard;
+
+                    }
+
                     if ( mode == - 1 ) {
 
                         float v = texture( mask, vUv ).r;
@@ -582,20 +590,18 @@ class EffectMaterial extends THREE.ShaderMaterial {
                     } else if ( mode == 0 ) {
 
                         // coordinate
-                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
-                        gl_FragColor = vec4( vec3( coord ) / vec3( size, 1 ), 1 );
+                        gl_FragColor = vec4( vec3( s ) / vec3( size, 1 ), 1 );
 
                     } else if ( mode == 1 ) {
 
                         // sdf
-                        float dist = abs( texelFetch( map, currCoord, 0 ).b ) / thickness;
+                        float dist = abs( s.b ) / thickness;
                         gl_FragColor = vec4( dist, dist, dist, 1 );
 
                     } else if ( mode == 2 ) {
 
                         // outline
-                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
-                        float dist = coord.b * float( inside );
+                        float dist = s.b * float( inside );
 
                         // NOTE: for some reason this fwidth call is breaking on Android
                         // float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
@@ -610,8 +616,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                     } else if ( mode == 3 ) {
 
                         // glow
-                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
-                        float dist = coord.b * float( inside );
+                        float dist = s.b * float( inside );
 
                         // NOTE: for some reason this fwidth call is breaking on Android
                         // float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
@@ -623,8 +628,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                     } else if ( mode == 4 ) {
 
                         // pulse
-                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
-                        float dist = coord.b * float( inside );
+                        float dist = s.b * float( inside );
                         float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
                         float clip =
                             smoothstep( thickness + w, thickness - w, dist ) *
@@ -636,6 +640,12 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                         gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 4.0 ) );
                         gl_FragColor.a = clip * fade * smoothstep( 0.0, fwidth2( pulse ), pulse );
+
+                    }
+
+                    if ( gl_FragColor.a <= 0.0 ) {
+
+                        discard;
 
                     }
 
@@ -726,8 +736,9 @@ class JFAMaterial extends THREE.ShaderMaterial {
 
                     if ( texture( mask, vUv ).r < 0.5 ) {
 
+                        // discard any changes outside the mask, resulting in a 0 distance
                         gl_FragColor = vec4( result, 1 );
-                        return;
+                        discard;
 
                     }
 
@@ -758,23 +769,28 @@ class JFAMaterial extends THREE.ShaderMaterial {
                                 ) {
 
                                     other = texelFetch( source, otherCoord, 0 ).rgb;
-                                    if ( resultSign != sign( other.z ) ) {
+                                    if ( other.b != 0.0 ) {
 
-                                        // if the sign is different then we've possibly found a new best coord
-                                        float dist = length( vec2( currCoord - otherCoord ) );
-                                        if ( dist < result.z * resultSign ) {
+                                        // don't bother with the pixel if the distance is 0, meaning it's outside the mask
+                                        if ( resultSign != sign( other.z ) ) {
 
-                                            result = vec3( otherCoord, dist * resultSign );
+                                            // if the sign is different then we've possibly found a new best coord
+                                            float dist = length( vec2( currCoord - otherCoord ) );
+                                            if ( dist < result.z * resultSign ) {
 
-                                        }
+                                                result = vec3( otherCoord, dist * resultSign );
 
-                                    } else if ( ivec2( other.rg ) != otherCoord ) {
+                                            }
 
-                                        // if the sign is the same then we've possibly found a new best distance
-                                        float dist = length( vec2( currCoord - ivec2( other.rg ) ) );
-                                        if ( dist < result.z * resultSign ) {
+                                        } else if ( ivec2( other.rg ) != otherCoord ) {
 
-                                            result = vec3( other.rg, dist * resultSign );
+                                            // if the sign is the same then we've possibly found a new best distance
+                                            float dist = length( vec2( currCoord - ivec2( other.rg ) ) );
+                                            if ( dist < result.z * resultSign ) {
+
+                                                result = vec3( other.rg, dist * resultSign );
+
+                                            }
 
                                         }
 
