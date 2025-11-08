@@ -16,6 +16,9 @@ let frameTime = 0;
 let frameSamples = 0;
 let lastFrameStart = - 1;
 
+const box = new THREE.Box3();
+const sphere = new THREE.Sphere();
+
 const params = {
     mode: 2,
     inside: false,
@@ -195,20 +198,6 @@ function animate() {
 
     //
 
-    // initialize the JFA seed - negative values are "inside" the mesh to be rendered
-    renderer.setRenderTarget( targets[ 0 ] );
-    seedQuad.material.depthWrite = false;
-    seedQuad.render( renderer );
-
-    // render the model
-    scene.overrideMaterial = seedMaterial;
-    seedMaterial.negative = true;
-    renderer.autoClear = false;
-    renderer.render( scene, camera );
-    renderer.autoClear = true;
-    scene.overrideMaterial = null;
-    renderer.setRenderTarget( null );
-
     // render a mask
     masks[ 0 ].setSize( Math.floor( targets[ 0 ].width / params.thickness ), Math.floor( targets[ 0 ].height / params.thickness ) );
     masks[ 1 ].setSize( masks[ 0 ].width, masks[ 0 ].height );
@@ -234,6 +223,55 @@ function animate() {
 
     masks.reverse();
 
+    // set scissor for operations
+    camera.updateMatrixWorld();
+    box.setFromObject( scene ).getBoundingSphere( sphere );
+
+    const offset = sphere.center.clone();
+    offset.applyMatrix4( camera.matrixWorldInverse );
+    offset.x += sphere.radius;
+    offset.y += sphere.radius;
+    offset.applyMatrix4( camera.projectionMatrix );
+
+    sphere.center.project( camera ).multiplyScalar( 0.5 );
+    sphere.center.x += 0.5;
+    sphere.center.y += 0.5;
+    sphere.center.z = 0;
+
+    offset.multiplyScalar( 0.5 );
+    offset.x += 0.5;
+    offset.y += 0.5;
+    offset.z = 0;
+
+    let { width, height } = targets[ 0 ];
+    width /= renderer.getPixelRatio();
+    height /= renderer.getPixelRatio();
+
+    const delta = Math.max( Math.abs( sphere.center.x - offset.x ) * width, Math.abs( sphere.center.y - offset.y ) * height );
+    sphere.center.x *= width;
+    sphere.center.y *= height;
+
+    const { x, y } = sphere.center;
+    renderer.setScissorTest( true );
+    renderer.setScissor( x - delta, y - delta, delta * 2, delta * 2 );
+
+    //
+
+    // initialize the JFA seed - negative values are "inside" the mesh to be rendered
+    renderer.setRenderTarget( targets[ 0 ] );
+    seedQuad.material.depthWrite = false;
+    seedQuad.render( renderer );
+
+    // render the model
+    scene.overrideMaterial = seedMaterial;
+    seedMaterial.negative = true;
+    renderer.autoClear = false;
+    renderer.render( scene, camera );
+    renderer.autoClear = true;
+    scene.overrideMaterial = null;
+    renderer.setRenderTarget( null );
+
+    // JFA ping pong
     let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness );
     while( true ) {
 
@@ -267,6 +305,8 @@ function animate() {
     effectQuad.material.color.set( params.color );
     effectQuad.render( renderer );
     renderer.autoClear = true;
+
+    renderer.setScissorTest( false );
 
     // update stats
     infoContainer.innerText = 
