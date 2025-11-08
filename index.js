@@ -596,20 +596,26 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         // outline
                         vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
                         float dist = coord.b * float( inside );
-                        float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+
+                        // NOTE: for some reason this fwidth call is breaking on Android
+                        // float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+                        float w = 0.5;
                         float val =
                             smoothstep( thickness + w, thickness - w, dist ) *
-                            smoothstep( - w - 1.0, w - 1.0, dist );
+                            smoothstep( - w - 1.0, w - 1.0, dist );                        
 
                         gl_FragColor.rgb = vec3( color );
-                        gl_FragColor.a = val;
+                        gl_FragColor.a = clamp( val, 0.0, 1.0 );
 
                     } else if ( mode == 3 ) {
 
                         // glow
                         vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
                         float dist = coord.b * float( inside );
-                        float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+
+                        // NOTE: for some reason this fwidth call is breaking on Android
+                        // float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+                        float w = 0.5;
 
                         gl_FragColor.rgb = color;
                         gl_FragColor.a = ( 1.0 - dist / thickness ) * smoothstep( - w - 1.0, w - 1.0, dist );
