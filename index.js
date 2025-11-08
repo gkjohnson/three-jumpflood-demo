@@ -52,15 +52,15 @@ async function init() {
     targets = [
         new THREE.WebGLRenderTarget( 1, 1, {
             format: THREE.RedIntegerFormat,
-            type: THREE.IntType,
-            internalFormat: 'R32I',
+            type: THREE.ShortType,
+            internalFormat: 'R16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
         } ),
         new THREE.WebGLRenderTarget( 1, 1, {
             format: THREE.RedIntegerFormat,
-            type: THREE.IntType,
-            internalFormat: 'R32I',
+            type: THREE.ShortType,
+            internalFormat: 'R16I',
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
         } ),
