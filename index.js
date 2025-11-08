@@ -22,7 +22,7 @@ const sphere = new THREE.Sphere();
 const params = {
     mode: 2,
     inside: false,
-    thickness: 5,
+    thickness: 15,
     color: '#e91e63',
 };
 
@@ -139,7 +139,7 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3 } );
+    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4 } );
     gui.add( params, 'inside' );
     gui.add( params, 'thickness', 0, 50, 0.25 );
     gui.addColor( params, 'color' );
@@ -247,7 +247,7 @@ function animate() {
     width /= renderer.getPixelRatio();
     height /= renderer.getPixelRatio();
 
-    const delta = Math.max( Math.abs( sphere.center.x - offset.x ) * width, Math.abs( sphere.center.y - offset.y ) * height );
+    const delta = Math.max( Math.abs( sphere.center.x - offset.x ) * width, Math.abs( sphere.center.y - offset.y ) * height ) + params.thickness;
     sphere.center.x *= width;
     sphere.center.y *= height;
 
@@ -297,6 +297,7 @@ function animate() {
 
     // render the final effect
     renderer.autoClear = false;
+    effectQuad.material.time = performance.now();
     effectQuad.material.map = targets[ 0 ].texture;
     effectQuad.material.mask = masks[ 1 ].texture;
     effectQuad.material.thickness = params.thickness;
@@ -445,6 +446,18 @@ class SeedMaterial extends THREE.ShaderMaterial {
 
 class EffectMaterial extends THREE.ShaderMaterial {
 
+    get time() {
+
+        return this.uniforms.time.value
+
+    }
+
+    set time( v ) {
+
+        this.uniforms.time.value = v;
+
+    }
+
     get map() {
 
         return this.uniforms.map.value;
@@ -517,6 +530,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
             transparent: true,
             uniforms: {
+                time: { value: 0 },
                 map: { value: null },
                 mask: { value: null },
                 color: { value: new THREE.Color() },
@@ -540,6 +554,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
             fragmentShader: /* glsl */`
 
                 varying vec2 vUv;
+                uniform float time;
                 uniform sampler2D map;
                 uniform sampler2D mask;
                 uniform float thickness;
@@ -598,6 +613,20 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                         gl_FragColor.rgb = color;
                         gl_FragColor.a = ( 1.0 - dist / thickness ) * smoothstep( - w - 1.0, w - 1.0, dist );
+
+                    } else if ( mode == 4 ) {
+
+                        // pulse
+                        vec3 coord = texelFetch( map, currCoord, 0 ).rgb;
+                        float dist = coord.b * float( inside );
+                        float w = clamp( fwidth2( dist ), - 1.0, 1.0 ) * 0.5;
+                        float val =
+                            smoothstep( thickness + w, thickness - w, dist ) *
+                            smoothstep( - w - 1.0, w - 1.0, dist );
+
+                        float norm = dist / thickness;
+                        gl_FragColor.rgb = mix( vec3( color ), vec3( 1 ), 0.5 * pow( 1.0 - norm, 5.0 ) );
+                        gl_FragColor.a = val * sin( time * - 0.01 + 20.0 * pow( norm, 2.5 ) ) * ( 1.0 - pow( norm, 2.0 ) );
 
                     }
 
@@ -705,7 +734,7 @@ class JFAMaterial extends THREE.ShaderMaterial {
                             const x = i % 3 - 1;
                             const y = Math.floor( i / 3 ) - 1;
 
-                            if ( x == 0 && y === 0 || ( x !== 0 && y !== 0 ) ) {
+                            if ( x == 0 && y === 0 ) {
 
                                 return '';
 
