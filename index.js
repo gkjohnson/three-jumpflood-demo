@@ -188,7 +188,7 @@ function animate() {
     scene.overrideMaterial = null;
     renderer.setRenderTarget( null );
 
-    let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness * 2 );
+    let step = Math.min( Math.max( targets[ 0 ].width, targets[ 0 ].height ), params.thickness );
     while( true ) {
 
         jfaQuad.material.step = step;
@@ -486,53 +486,62 @@ class JFAMaterial extends THREE.ShaderMaterial {
                     ivec2 size = textureSize( source, 0 );
                     ivec2 currCoord = ivec2( gl_FragCoord.xy );
                     vec3 result = texelFetch( source, currCoord, 0 ).rgb;
+                    float resultSign = sign( result.z );
 
-                    for ( int x = - 1; x <= 1; x ++ ) {
+                    ivec2 otherCoord;
+                    vec3 other;
+                    
+                    ${
 
-                        for ( int y = - 1; y <= 1; y ++ ) {
+                        // unroll the loops
+                        new Array( 9 ).fill().map( ( e, i ) => {
 
-                            // skip the center pixel
-                            if ( x == 0 && y == 0 ) {
+                            const x = i % 3 - 1;
+                            const y = Math.floor( i / 3 ) - 1;
 
-                                continue;
+                            if ( x == 0 && y === 0 || ( x !== 0 && y !== 0 ) ) {
 
-                            }
-
-                            // skip pixels that are outside the target bounds
-                            ivec2 coord = currCoord + ivec2( x, y ) * step;
-                            if (
-                                coord.x >= size.x || coord.x < 0 ||
-                                coord.y >= size.y || coord.y < 0
-                            ) {
-
-                                continue;
+                                return '';
 
                             }
 
-                            vec3 other = texelFetch( source, coord, 0 ).rgb;
-                            if ( sign( result.z ) != sign( other.z ) ) {
+                            return /* glsl */`
 
-                                // if the sign is different then we've possibly found a new best coord
-                                float dist = length( vec2( currCoord - coord ) );
-                                if ( dist < abs( result.z ) ) {
+                                otherCoord = currCoord + ivec2( ${ x }, ${ y } ) * step;
+                                if (
+                                    otherCoord.x < size.x && otherCoord.x >= 0 &&
+                                    otherCoord.y < size.y && otherCoord.y >= 0
+                                ) {
 
-                                    result = vec3( coord, dist * sign( result.z ) );
+                                    other = texelFetch( source, otherCoord, 0 ).rgb;
+                                    if ( resultSign != sign( other.z ) ) {
+
+                                        // if the sign is different then we've possibly found a new best coord
+                                        float dist = length( vec2( currCoord - otherCoord ) );
+                                        if ( dist < result.z * resultSign ) {
+
+                                            result = vec3( otherCoord, dist * resultSign );
+
+                                        }
+
+                                    } else if ( ivec2( other.rg ) != otherCoord ) {
+
+                                        // if the sign is the same then we've possibly found a new best distance
+                                        float dist = length( vec2( currCoord - ivec2( other.rg ) ) );
+                                        if ( dist < result.z * resultSign ) {
+
+                                            result = vec3( other.rg, dist * resultSign );
+
+                                        }
+
+                                    }
 
                                 }
+                            
+                            `;
 
-                            } else if ( ivec2( other.rg ) != coord ) {
 
-                                // if the sign is the same then we've possibly found a new best distance
-                                float dist = length( vec2( currCoord - ivec2( other.rg ) ) );
-                                if ( dist < abs( result.z ) ) {
-
-                                    result = vec3( other.rg, dist * sign( result.z ) );
-
-                                }
-
-                            }
-
-                        }
+                        } ).join( '' )
 
                     }
 
