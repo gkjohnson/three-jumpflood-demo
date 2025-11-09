@@ -10,7 +10,7 @@ Demo [here](https://gkjohnson.github.io/three-jumpflood-demo/)!
 <i>Silhouette glow and outline effects in real time. </i>
 </div>
 
-** Model Attribution**
+**Model Attribution**
 
 - Chicken robot model courtesy of [artjamayka on SketchFab](https://sketchfab.com/3d-models/vilhelm-13-low-res-textures-cb49a1f71ba54cad8e9dc09da8ef47cd).
 - Terrarium robots model courtesy [nyancube on SketchFab](https://sketchfab.com/3d-models/terrarium-bots-nerdscribbles-bf9a19aae6914a2c866311887edc8b3e).
