@@ -22,7 +22,7 @@ const sphere = new THREE.Sphere();
 const params = {
     mode: 5,
     inside: false,
-    thickness: 50,
+    thickness: 30,
     color: '#e91e63',
 };
 
@@ -31,7 +31,7 @@ async function init() {
     infoContainer = document.getElementById( 'info' );
 
     camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
-    camera.position.set( 4, 3, 4 );
+    camera.position.set( 1.5, 0.75, 1.5 );
 
     scene = new THREE.Scene();
 
@@ -95,19 +95,40 @@ async function init() {
 
     expandQuad = new FullScreenQuad( new ExpandMaskMaterial() );
 
+
+    // https://github.com/gkjohnson/3d-demo-data/raw/refs/heads/main/models/nasa-m2020/Perseverance.glb
+    // https://raw.githubusercontent.com/gkjohnson/3d-demo-data/refs/heads/main/models/nasa-m2020/Perseverance.glb
+
+    let url = 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/main/models/vilhelm-13/vilhelm_13.glb';
+    let yRotation = Math.PI;
+
+    if ( window.location.hash.includes( 'rover' ) ) {
+
+        url = 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/refs/heads/main/models/nasa-m2020/Perseverance.glb';
+        yRotation = 0.0;
+
+    } else if ( window.location.hash.includes( 'terrarium' ) ) {
+
+        url = 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/refs/heads/main/models/terrarium-robots/scene.gltf';
+        yRotation = 0.0;
+
+    }
+
     // load the model & env map
     const modelPromise = new GLTFLoader()
         .setMeshoptDecoder( MeshoptDecoder )
-        .loadAsync( 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/main/models/vilhelm-13/vilhelm_13.glb' )
+        .loadAsync( url )
         .then( gltf => {
 
-            gltf.scene.scale.setScalar( 0.025 );
-            gltf.scene.rotation.y += Math.PI;
+            gltf.scene.rotation.y += yRotation;
 
-            new THREE.Box3()
-                .setFromObject( gltf.scene )
-                .getCenter( gltf.scene.position )
-                .multiplyScalar( - 1 );
+            const box = new THREE.Box3().setFromObject( gltf.scene );
+            box.getCenter( gltf.scene.position ).multiplyScalar( - 1 );
+
+            const sphere = new THREE.Sphere();
+            box.getBoundingSphere( sphere )
+            gltf.scene.scale.setScalar( 1 / sphere.radius );
+            gltf.scene.position.multiplyScalar( 1 / sphere.radius );
 
             gltf.scene.updateMatrixWorld();
 
@@ -141,7 +162,7 @@ async function init() {
     const gui = new GUI();
     gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4, 'Halftone': 5 } );
     gui.add( params, 'inside' );
-    gui.add( params, 'thickness', 1, 75, 0.25 );
+    gui.add( params, 'thickness', 1, 50, 0.25 );
     gui.addColor( params, 'color' );
 
     window.addEventListener( 'resize', onWindowResize );
@@ -210,7 +231,7 @@ function animate() {
     renderer.setRenderTarget( null );
 
     // expand the mask
-    for ( let i = 0; i < 3; i ++ ) {
+    for ( let i = 0; i < 4; i ++ ) {
 
         expandQuad.material.source = masks[ 0 ].texture;
         renderer.setRenderTarget( masks[ 1 ] );
@@ -644,7 +665,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                     } else if ( mode == 5 ) {
 
                         // halftone
-                        float dotRadius = 13.0;
+                        float dotRadius = 13.0 * thickness * 0.02;
                         float dotWidth = dotRadius * 2.0;
                         vec2 closestDot = floor( vec2( currCoord ) / dotWidth ) * dotWidth + vec2( dotRadius );
 
