@@ -685,7 +685,6 @@ class EffectMaterial extends THREE.ShaderMaterial {
 
                                     float strength = clamp( 1.0 - dotStrength / thickness, 0.0, 1.0 );
                                     strength = 1.0 - pow( 1.0 - strength, 0.75 );
-                                    strength *= 1.0;
 
                                     float distToDot = length( vec2( currCoord ) - dotCoord );
                                     float newAlpha = smoothstep( strength * dotWidth, strength * dotWidth - 1.0, distToDot );
