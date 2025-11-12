@@ -164,9 +164,9 @@ async function init() {
     renderer.setAnimationLoop( animate );
 
     const gui = new GUI();
-    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4, 'Halftone': 5 } );
+    gui.add( params, 'mode', { 'Mask': - 1, 'Coordinate': 0, 'SDF': 1, 'Outline': 2, 'Glow': 3, 'Pulse': 4, 'Halftone': 5, 'Rings': 6 } );
     gui.add( params, 'inside' );
-    gui.add( params, 'thickness', 1, 50, 0.25 );
+    gui.add( params, 'thickness', 1, 250, 0.25 );
     gui.addColor( params, 'color' );
 
     window.addEventListener( 'resize', onWindowResize );
@@ -705,6 +705,22 @@ class EffectMaterial extends THREE.ShaderMaterial {
                         float w = 0.5;
                         gl_FragColor.rgb = color;
                         gl_FragColor.a = alpha * smoothstep( - w - 1.0, w - 1.0, s.b * float( inside ) );
+
+                    } else if ( mode == 6 ) {
+
+                        // rings
+                        float dist = s.b * float( inside );
+                        float value = clamp( 1.0 - dist / thickness, 0.0, 1.0 );
+                        float stride = 15.0;
+
+                        // NOTE: for some reason this fwidth call is breaking on Android
+                        float w = 0.5;
+
+                        gl_FragColor.rgb = color;
+                        gl_FragColor.a =
+                            smoothstep( 0.2 + w / thickness, 0.2 - w / thickness, mod( ( 1.0 - value ) * thickness / stride, 1.0 ) ) *
+                            smoothstep( - w - 1.0, w - 1.0, dist ) *
+                            smoothstep( stride * floor( thickness / stride ) + w, stride * floor( thickness / stride ) - w, dist + 1.0 );
 
                     }
 
