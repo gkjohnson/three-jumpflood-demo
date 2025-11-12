@@ -30,21 +30,25 @@ async function init() {
 
     infoContainer = document.getElementById( 'info' );
 
+    // init camera
     camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
     camera.position.set( 1.5, 0.75, 1.5 );
 
     scene = new THREE.Scene();
 
+    // init renderer
     renderer = new THREE.WebGLRenderer( { antialias: true } );
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.setClearColor( 0x171717, 1 );
     document.body.appendChild( renderer.domElement );
 
+    // init controls
     controls = new OrbitControls( camera, renderer.domElement );
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1;
 
+    // init materials
     seedMaterial = new SeedMaterial();
     seedMaterial.side = THREE.DoubleSide;
 
@@ -95,10 +99,7 @@ async function init() {
 
     expandQuad = new FullScreenQuad( new ExpandMaskMaterial() );
 
-
-    // https://github.com/gkjohnson/3d-demo-data/raw/refs/heads/main/models/nasa-m2020/Perseverance.glb
-    // https://raw.githubusercontent.com/gkjohnson/3d-demo-data/refs/heads/main/models/nasa-m2020/Perseverance.glb
-
+    // models
     let url = 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/main/models/vilhelm-13/vilhelm_13.glb';
     let yRotation = Math.PI;
 
@@ -152,6 +153,9 @@ async function init() {
 
             tex.mapping = THREE.EquirectangularReflectionMapping;
             scene.environment = tex;
+            scene.environmentRotation.set( 0.6, 0, 0 );
+            scene.environmentIntensity = 1.2;
+            
 
         } );
 
