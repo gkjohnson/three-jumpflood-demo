@@ -669,7 +669,7 @@ class EffectMaterial extends THREE.ShaderMaterial {
                     } else if ( mode == 5 ) {
 
                         // halftone
-                        float dotRadius = 13.0 * thickness * 0.02;
+                        float dotRadius = 13.0 * min( thickness, 40. ) * 0.02;
                         float dotWidth = dotRadius * 2.0;
                         vec2 closestDot = floor( vec2( currCoord ) / dotWidth ) * dotWidth + vec2( dotRadius );
 
