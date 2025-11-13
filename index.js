@@ -224,8 +224,11 @@ function animate() {
     //
 
     // render a mask
-    masks[ 0 ].setSize( Math.floor( targets[ 0 ].width / params.thickness ), Math.floor( targets[ 0 ].height / params.thickness ) );
-    masks[ 1 ].setSize( masks[ 0 ].width, masks[ 0 ].height );
+    let maskWidth = Math.max( Math.floor( targets[ 0 ].width / params.thickness ), 3 );
+    let maskHeight = Math.max( Math.floor( targets[ 0 ].height / params.thickness ), 3 );
+
+    masks[ 0 ].setSize( maskWidth, maskHeight );
+    masks[ 1 ].setSize( maskWidth, maskHeight );
 
     scene.overrideMaterial = maskMaterial;
     renderer.setClearColor( 0, 0 );
