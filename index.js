@@ -214,7 +214,7 @@ function animate() {
 
     }
 
-    controls.update();
+    controls.update( frameDelta * 1e-3 );
     renderer.info.autoReset = false;
 
     // render the main scene
