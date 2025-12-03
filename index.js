@@ -195,7 +195,7 @@ function onWindowResize() {
 function animate() {
 
     // frame time tracking
-    let frameDelta;
+    let frameDelta = 0;
     if ( lastFrameStart === - 1 ) {
 
         lastFrameStart = window.performance.now();
